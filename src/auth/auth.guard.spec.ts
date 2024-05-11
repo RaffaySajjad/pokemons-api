@@ -3,6 +3,7 @@ import { AuthGuard } from './auth.guard';
 import { JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
 import { ExecutionContext } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 describe('AuthGuard', () => {
   let guard: AuthGuard;
@@ -18,11 +19,16 @@ describe('AuthGuard', () => {
       getAllAndOverride: jest.fn().mockReturnValue(false),
     };
 
+    const mockConfigService: Partial<ConfigService> = {
+      getOrThrow: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthGuard,
         { provide: JwtService, useValue: mockJwtService },
         { provide: Reflector, useValue: mockReflector },
+        { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
 

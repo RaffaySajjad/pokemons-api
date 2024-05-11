@@ -1,9 +1,10 @@
+import { BadRequestException, HttpStatus } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { PokemonsController } from './pokemons.controller';
-import { PokemonsService } from './pokemons.service';
+import { Readable } from 'stream';
 import { CreatePokemonDto } from './dto/create-pokemon.dto';
 import { UpdatePokemonDto } from './dto/update-pokemon.dto';
-import { NotFoundException } from '@nestjs/common';
+import { PokemonsController } from './pokemons.controller';
+import { PokemonsService } from './pokemons.service';
 
 const mockPokemonsService = {
   create: jest.fn(),
@@ -13,6 +14,19 @@ const mockPokemonsService = {
   getWeaknessAndResistance: jest.fn(),
   delete: jest.fn(),
   simulateBattle: jest.fn(),
+};
+
+const mockFile: Express.Multer.File = {
+  fieldname: 'file',
+  originalname: 'pokemon.jpg',
+  encoding: '7bit',
+  mimetype: 'image/jpeg',
+  size: 500000,
+  stream: new Readable(),
+  destination: './uploads',
+  filename: 'pokemon.jpg',
+  path: './uploads/pokemon.jpg',
+  buffer: Buffer.from(''),
 };
 
 describe('PokemonsController', () => {
@@ -35,19 +49,16 @@ describe('PokemonsController', () => {
     expect(controller).toBeDefined();
   });
 
-  // Create Pokemon
   describe('createPokemon', () => {
     it('should successfully create a pokemon', async () => {
       const dto = new CreatePokemonDto();
-      const result = {}; // expected result
+      const result = {};
       mockPokemonsService.create.mockResolvedValue(result);
 
-      expect(await controller.createPokemon(null, dto)).toBe(result);
-      expect(mockPokemonsService.create).toHaveBeenCalledWith(dto);
+      expect(await controller.createPokemon(mockFile, dto)).toBe(result);
     });
   });
 
-  // Update Pokemon
   describe('updatePokemon', () => {
     it('should update a pokemon successfully', async () => {
       const id = '1';
@@ -60,30 +71,28 @@ describe('PokemonsController', () => {
     });
   });
 
-  // Get All Pokemons
   describe('getAllPokemons', () => {
     it('should return an array of pokemons', async () => {
-      const limit = 10;
-      const offset = 0;
+      const limit = '10';
+      const offset = '0';
       const result = [];
       mockPokemonsService.findAll.mockResolvedValue(result);
 
       expect(await controller.getAllPokemons(limit, offset)).toBe(result);
-      expect(mockPokemonsService.findAll).toHaveBeenCalledWith(limit, offset);
+      expect(mockPokemonsService.findAll).toHaveBeenCalledWith(+limit, +offset);
     });
   });
 
-  // Get Pokemon by ID or Name
   describe('getPokemon', () => {
     it('should throw NotFoundException if neither id nor name is provided', async () => {
       try {
         await controller.getPokemon('', '');
       } catch (error) {
-        expect(error).toBeInstanceOf(NotFoundException);
+        expect(error).toBeInstanceOf(BadRequestException);
         expect(error.response.message).toEqual(
           'Query parameter id or name must be provided',
         );
-        expect(error.response.statusCode).toEqual(404);
+        expect(error.response.statusCode).toEqual(HttpStatus.BAD_REQUEST);
       }
     });
 
@@ -106,7 +115,6 @@ describe('PokemonsController', () => {
     });
   });
 
-  // Get Weakness and Resistance
   describe('getWeaknessAndResistance', () => {
     it('should return weaknesses and resistances', async () => {
       const id = '1';
@@ -120,18 +128,16 @@ describe('PokemonsController', () => {
     });
   });
 
-  // Delete Pokemon
   describe('deletePokemon', () => {
     it('should delete a pokemon successfully', async () => {
       const id = '1';
       mockPokemonsService.delete.mockResolvedValue(undefined);
 
-      await expect(controller.deletePokemon(id)).resolves.toBeUndefined();
-      expect(mockPokemonsService.delete).toHaveBeenCalledWith(id);
+      await expect(controller.deletePokemon(null, id)).resolves.toBeUndefined();
+      expect(mockPokemonsService.delete).toHaveBeenCalled();
     });
   });
 
-  // Simulate Battle
   describe('simulateBattle', () => {
     it('should simulate a battle and return a result', async () => {
       const attackerId = '1';

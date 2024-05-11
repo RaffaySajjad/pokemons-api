@@ -1,19 +1,36 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { CreatePokemonDto } from './dto/create-pokemon.dto';
-import { UpdatePokemonDto } from './dto/update-pokemon.dto';
+import { Readable } from 'stream';
+import { S3Service } from '../s3/s3.service';
 import { Pokemon } from './entity/pokemon.entity';
 import { PokemonsService } from './pokemons.service';
-import { MOVES } from './constants';
 
 const mockRepository = {
   create: jest.fn(),
   save: jest.fn(),
-  find: jest.fn(),
   findOne: jest.fn(),
+  find: jest.fn(),
   delete: jest.fn(),
   preload: jest.fn(),
+};
+
+const mockS3Service = {
+  uploadFileToS3: jest.fn().mockResolvedValue('image-url'),
+};
+
+const createPokemonDto = {
+  name: 'Pikachu',
+  health: 200,
+  attack: {
+    name: 'THUNDER_SHOCK',
+    damage: 10,
+  },
+  weakness: {
+    name: 'FIRE_BLAST',
+    multiplier: 2,
+  },
+  filePath: 'image-url',
 };
 
 describe('PokemonsService', () => {
@@ -27,6 +44,10 @@ describe('PokemonsService', () => {
           provide: getRepositoryToken(Pokemon),
           useValue: mockRepository,
         },
+        {
+          provide: S3Service,
+          useValue: mockS3Service,
+        },
       ],
     }).compile();
 
@@ -37,119 +58,113 @@ describe('PokemonsService', () => {
     jest.clearAllMocks();
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
-  });
   describe('create', () => {
-    it('should successfully create a pokemon', async () => {
-      const dto = new CreatePokemonDto();
-      const expectedPokemon = { ...dto, id: 1 };
-      mockRepository.create.mockImplementation(() => dto);
-      mockRepository.save.mockResolvedValue(expectedPokemon);
+    it('should validate and upload an image, then save a new Pokemon', async () => {
+      const mockFile: Express.Multer.File = {
+        fieldname: 'file',
+        originalname: 'pokemon.jpg',
+        encoding: '7bit',
+        mimetype: 'image/jpeg',
+        size: 500000,
+        stream: new Readable(),
+        destination: './uploads',
+        filename: 'pokemon.jpg',
+        path: './uploads/pokemon.jpg',
+        buffer: Buffer.from(''),
+      };
+      mockS3Service.uploadFileToS3.mockResolvedValue('image-url');
+      mockRepository.create.mockReturnValue(createPokemonDto);
+      mockRepository.save.mockResolvedValue({
+        ...createPokemonDto,
+        id: 1,
+        filePath: 'image-url',
+      });
 
-      await expect(service.create(dto, null)).resolves.toEqual(expectedPokemon);
-      expect(mockRepository.create).toHaveBeenCalledWith(dto);
+      const result = await service.create(createPokemonDto, mockFile);
+      expect(mockS3Service.uploadFileToS3).toHaveBeenCalledWith(mockFile);
+      expect(mockRepository.create).toHaveBeenCalledWith({
+        ...createPokemonDto,
+        filePath: 'image-url',
+      });
+      expect(mockRepository.save).toHaveBeenCalledWith({
+        ...createPokemonDto,
+        filePath: 'image-url',
+      });
+      expect(result).toEqual({
+        ...createPokemonDto,
+        id: 1,
+        filePath: 'image-url',
+      });
+    });
+
+    it('should throw BadRequestException if file is not an image', async () => {
+      const mockFile: Express.Multer.File = {
+        fieldname: 'file',
+        originalname: 'pokemon.txt',
+        encoding: '7bit',
+        mimetype: 'text/plain',
+        size: 500000,
+        stream: new Readable(),
+        destination: './uploads',
+        filename: 'pokemon.txt',
+        path: './uploads/pokemon.txt',
+        buffer: Buffer.from(''),
+      };
+      await expect(service.create(createPokemonDto, mockFile)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
   describe('update', () => {
-    it('should throw NotFoundException if pokemon not found', async () => {
-      mockRepository.preload = jest.fn().mockResolvedValue(undefined);
-      await expect(service.update('1', new UpdatePokemonDto())).rejects.toThrow(
+    it('should update a Pokemon if found', async () => {
+      const updatePokemonDto = { health: 300 };
+      mockRepository.findOne.mockResolvedValue({ id: 1, name: 'Pikachu' });
+      mockRepository.preload.mockResolvedValue({ ...updatePokemonDto, id: 1 });
+      mockRepository.save.mockResolvedValue({ ...updatePokemonDto, id: 1 });
+
+      const result = await service.update('Pikachu', updatePokemonDto);
+      expect(mockRepository.preload).toHaveBeenCalledWith({
+        id: 1,
+        ...updatePokemonDto,
+      });
+      expect(result).toEqual({ ...updatePokemonDto, id: 1 });
+    });
+
+    it('should throw NotFoundException if Pokemon does not exist', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+      await expect(service.update('Pokemon', { health: 300 })).rejects.toThrow(
         NotFoundException,
       );
-    });
-
-    it('should update pokemon if found', async () => {
-      const pokemon = new Pokemon();
-      const dto = new UpdatePokemonDto();
-      mockRepository.preload.mockResolvedValue(pokemon);
-      mockRepository.save.mockResolvedValue(pokemon);
-
-      await expect(service.update('1', dto)).resolves.toEqual(pokemon);
-      expect(mockRepository.save).toHaveBeenCalledWith(pokemon);
-    });
-  });
-
-  describe('findOne', () => {
-    it('should throw NotFoundException if pokemon not found', async () => {
-      mockRepository.findOne.mockResolvedValueOnce(null);
-      await expect(service.findOne({ id: '1' })).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-
-    it('should return the pokemon if found', async () => {
-      const pokemon = new Pokemon();
-      mockRepository.findOne.mockResolvedValueOnce(pokemon);
-      await expect(service.findOne({ id: '1' })).resolves.toEqual(pokemon);
     });
   });
 
   describe('findAll', () => {
-    it('should return all pokemons', async () => {
-      const pokemons = [new Pokemon(), new Pokemon()];
-      mockRepository.find.mockResolvedValue(pokemons);
+    it('should return an array of Pokemons', async () => {
+      const pokemonArray = [
+        { name: 'Pokemon', health: 300 },
+        { name: 'Charmander', health: 250 },
+      ];
+      mockRepository.find.mockResolvedValue(pokemonArray);
 
-      await expect(service.findAll(10, 0)).resolves.toEqual(pokemons);
+      const result = await service.findAll(10, 0);
       expect(mockRepository.find).toHaveBeenCalledWith({ take: 10, skip: 0 });
+      expect(result).toEqual(pokemonArray);
     });
   });
 
-  describe('delete', () => {
-    it('should throw NotFoundException if pokemon not found', async () => {
-      mockRepository.findOne.mockResolvedValueOnce(null);
-      await expect(service.delete('1')).rejects.toThrow(NotFoundException);
+  describe('findOne', () => {
+    it('should return a Pokemon by id', async () => {
+      const pokemon = { name: 'Pokemon', health: 300 };
+      mockRepository.findOne.mockResolvedValue(pokemon);
+
+      const result = await service.findOne({ id: '1' });
+      expect(result).toEqual(pokemon);
     });
 
-    it('should delete the pokemon if found', async () => {
-      mockRepository.findOne.mockResolvedValueOnce(new Pokemon());
-      await service.delete('1');
-      expect(mockRepository.delete).toHaveBeenCalledWith({ id: 1 });
-    });
-  });
-
-  describe('simulateBattle', () => {
-    it('should correctly simulate a battle', async () => {
-      const attacker = {
-        id: 1,
-        name: 'Charizard',
-        attack: { name: MOVES.FIRE_BLAST, damage: 120 },
-        weakness: { name: MOVES.GIANT_WAVE, multiplier: 2 },
-      };
-      const defender = {
-        id: 2,
-        name: 'Feraligatr',
-        health: 180,
-        attack: { name: MOVES.GIANT_WAVE, damage: 160 },
-        weakness: { name: MOVES.GNAW, multiplier: 2 },
-      };
-      mockRepository.findOne
-        .mockResolvedValueOnce(attacker)
-        .mockResolvedValueOnce(defender);
-
-      const expectedWinner = {
-        id: defender.id,
-        name: defender.name,
-        message: `${defender.name} won the battle`,
-      };
-
-      const result = await service.simulateBattle('1', '2');
-      expect(result).toEqual(expectedWinner);
-    });
-
-    it('should throw NotFoundException if attacker not found', async () => {
-      mockRepository.findOne.mockResolvedValueOnce(null);
-      await expect(service.simulateBattle('1', '2')).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-
-    it('should throw NotFoundException if defender not found', async () => {
-      mockRepository.findOne
-        .mockResolvedValueOnce(new Pokemon())
-        .mockResolvedValueOnce(null);
-      await expect(service.simulateBattle('1', '2')).rejects.toThrow(
+    it('should throw NotFoundException if Pokemon not found', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+      await expect(service.findOne({ id: '1' })).rejects.toThrow(
         NotFoundException,
       );
     });

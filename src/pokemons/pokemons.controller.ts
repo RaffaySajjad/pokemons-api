@@ -46,21 +46,35 @@ export class PokemonsController {
     }
   }
 
-  @Patch('update/:id')
+  @Patch('update')
   updatePokemon(
-    @Param('id') id: string,
+    @Query('name') name: string,
     @Body() updatePokemonDto: UpdatePokemonDto,
   ): Promise<Pokemon> {
-    return this.pokemonsService.update(id, updatePokemonDto);
+    if (!name) {
+      throw new BadRequestException('Name must be provided');
+    }
+
+    return this.pokemonsService.update(name, updatePokemonDto);
   }
 
   @Get('all')
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'offset', required: false })
   getAllPokemons(
-    @Query('limit') limit = 1,
-    @Query('offset') offset = 0,
+    @Query('limit') limit = '5',
+    @Query('offset') offset = '0',
   ): Promise<Pokemon[]> {
+    if (isNaN(+limit) || isNaN(+offset)) {
+      throw new BadRequestException('Limit and offset must be numbers');
+    }
+
+    // If limit is greater than 20, set it to 20 (to prevent large data retrieval)
+    if (+limit > 20) {
+      limit = '20';
+      console.log('Limit set to 20');
+    }
+
     return this.pokemonsService.findAll(+limit, +offset);
   }
 
@@ -69,27 +83,47 @@ export class PokemonsController {
     @Query('id') id: string,
     @Query('name') name: string,
   ): Promise<Pokemon> {
-    if (id) {
-      return this.pokemonsService.findOne({ id });
-    } else if (name) {
-      return this.pokemonsService.findOne({ name });
-    } else {
-      throw new NotFoundException(
+    if (!id && !name) {
+      throw new BadRequestException(
         'Query parameter id or name must be provided',
       );
     }
+
+    if (id && !isNaN(+id)) {
+      return this.pokemonsService.findOne({ id });
+    } else if (name) {
+      return this.pokemonsService.findOne({ name });
+    }
+
+    throw new BadRequestException('Invalid query parameter');
   }
 
-  @Get('weaknessAndResistance/:id')
+  @Get('weaknessAndResistance')
   getWeaknessAndResistance(
-    @Param('id') id: string,
+    @Query('name') name: string,
   ): Promise<{ weaknesses: string[]; resistances: string[] }> {
-    return this.pokemonsService.getWeaknessAndResistance(id);
+    if (!name) {
+      throw new BadRequestException('Name must be provided');
+    }
+
+    return this.pokemonsService.getWeaknessAndResistance(name);
   }
 
-  @Delete('delete/:id')
-  deletePokemon(@Param('id') id: string): Promise<void> {
-    return this.pokemonsService.delete(id);
+  @Delete('delete')
+  deletePokemon(
+    @Query('name') name: string,
+    @Query('id') id: string,
+  ): Promise<string> {
+    if (!id && !name) {
+      throw new BadRequestException(
+        'Query parameter id or name must be provided',
+      );
+    }
+
+    return this.pokemonsService.delete({
+      value: id || name,
+      isId: !!id,
+    });
   }
 
   @Get('simulateBattle')

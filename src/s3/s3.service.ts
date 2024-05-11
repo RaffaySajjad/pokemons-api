@@ -26,15 +26,16 @@ export class S3Service {
 
   async uploadFileToS3(file: Express.Multer.File): Promise<string> {
     try {
+      const fileName = `${Date.now()}_${file.originalname}`;
       const command = new PutObjectCommand({
         Bucket: this.bucketName,
-        Key: `${file.originalname}_${Date.now()}`,
+        Key: fileName,
         Body: file.buffer,
         ACL: ObjectCannedACL.public_read,
         StorageClass: 'STANDARD',
       });
       await this.s3Client.send(command);
-      return `https://${this.bucketName}.s3.amazonaws.com/${file.originalname}`;
+      return `https://${this.bucketName}.s3.amazonaws.com/${fileName}`;
     } catch (error) {
       console.error('Error uploading file to S3:', error);
       throw error;

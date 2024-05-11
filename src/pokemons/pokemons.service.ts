@@ -8,7 +8,7 @@ import { Repository } from 'typeorm';
 import { CreatePokemonDto } from './dto/create-pokemon.dto';
 import { UpdatePokemonDto } from './dto/update-pokemon.dto';
 import { Pokemon } from './entity/pokemon.entity';
-import { S3Service } from 'src/s3/s3.service';
+import { S3Service } from '../s3/s3.service';
 
 @Injectable()
 export class PokemonsService {
@@ -37,29 +37,38 @@ export class PokemonsService {
       url = await this.s3Service.uploadFileToS3(file);
     }
 
-    const pokemon = this.pokemonRepository.create({
-      name,
-      health,
-      attack,
-      weakness,
-      resistance,
-      filePath: url,
-    });
-    return this.pokemonRepository.save(pokemon);
+    try {
+      const pokemon = this.pokemonRepository.create({
+        name,
+        health,
+        attack,
+        weakness,
+        resistance,
+        filePath: url,
+      });
+      return this.pokemonRepository.save(pokemon);
+    } catch (error) {
+      throw new BadRequestException(error?.message);
+    }
   }
 
   async update(
-    id: string,
+    name: string,
     updatePokemonDto: UpdatePokemonDto,
   ): Promise<Pokemon> {
-    const pokemon = await this.pokemonRepository.preload({
-      id: +id,
-      ...updatePokemonDto,
+    const pokemonToUpdate = await this.pokemonRepository.findOne({
+      select: ['id'],
+      where: { name },
     });
 
-    if (!pokemon) {
+    if (!pokemonToUpdate) {
       throw new NotFoundException('Pokemon not found');
     }
+
+    const pokemon = await this.pokemonRepository.preload({
+      id: pokemonToUpdate.id,
+      ...updatePokemonDto,
+    });
 
     return this.pokemonRepository.save(pokemon);
   }
@@ -91,28 +100,30 @@ export class PokemonsService {
     return pokemon;
   }
 
-  async getWeaknessAndResistance(id: string): Promise<{
+  async getWeaknessAndResistance(name: string): Promise<{
     weaknesses: string[];
     resistances: string[];
   }> {
     const pokemon = await this.pokemonRepository.findOne({
       select: ['weakness', 'resistance'],
-      where: { id: +id },
+      where: { name },
     });
+
+    console.log('NAME:', name, pokemon);
 
     if (!pokemon) {
       throw new NotFoundException('Pokemon not found');
     }
 
-    const weakAgainst = pokemon.weakness
-      ? await this.pokemonRepository
-          .createQueryBuilder('pokemon')
-          .select('pokemon.name')
-          .where('pokemon.attack @> :attack', {
-            attack: JSON.stringify({ name: pokemon.weakness.name }),
-          })
-          .getMany()
-      : [];
+    const weakAgainst = await this.pokemonRepository
+      .createQueryBuilder('pokemon')
+      .select('pokemon.name')
+      .where("pokemon.attack->>'name' = :attackName", {
+        attackName: pokemon.weakness.name,
+      })
+      .getMany();
+
+    console.log('Weak against --> ', weakAgainst);
 
     const resistantAgainst = pokemon.resistance
       ? await this.pokemonRepository
@@ -130,17 +141,37 @@ export class PokemonsService {
     };
   }
 
-  async delete(id: string): Promise<void> {
-    const pokemon = await this.pokemonRepository.findOne({
-      where: { id: +id },
-    });
+  async delete({ value, isId = true }): Promise<string> {
+    try {
+      if (isId && !isNaN(+value)) {
+        return this.deleteHelper(value);
+      }
 
-    if (!pokemon) {
+      const pokemon = await this.pokemonRepository.findOne({
+        where: {
+          name: value,
+        },
+      });
+
+      if (!pokemon) {
+        throw new NotFoundException('Pokemon not found');
+      }
+
+      return this.deleteHelper(pokemon.id.toString());
+    } catch (error) {
+      throw new BadRequestException(error?.message);
+    }
+  }
+
+  deleteHelper = async (id: string): Promise<string> => {
+    const result = await this.pokemonRepository.delete({ id: +id });
+
+    if (!result.affected) {
       throw new NotFoundException('Pokemon not found');
     }
 
-    await this.pokemonRepository.delete({ id: +id });
-  }
+    return 'Pokemon deleted successfully';
+  };
 
   async simulateBattle(
     attackerId: string,
@@ -173,19 +204,15 @@ export class PokemonsService {
     console.log('Attacker is ', attacker.name);
     console.log('Defender is ', defender.name);
 
-    const attackerAttack: Pokemon['attack'] = JSON.parse(
-      attacker.attack.toString(),
-    );
-    let attackDamage = attackerAttack.damage;
-    console.log('Attack damage ---> ', attackerAttack);
-
-    const defenderResistance: Pokemon['resistance'] = defender.resistance
-      ? JSON.parse(defender.resistance.toString())
-      : null;
+    let attackDamage = attacker.attack.damage;
+    console.log('Attack damage ---> ', attacker.attack.damage);
 
     let resistanceLevel = 0;
-    if (defenderResistance && defenderResistance.name === attackerAttack.name) {
-      resistanceLevel = defenderResistance.value;
+    if (
+      defender?.resistance &&
+      defender?.resistance?.name === attacker.attack.name
+    ) {
+      resistanceLevel = defender?.resistance?.value;
     }
 
     console.log('Defender resistance level ', resistanceLevel);
@@ -194,12 +221,9 @@ export class PokemonsService {
 
     console.log('Attack damage after resistance ', attackDamage);
 
-    const defenderWeakness: Pokemon['weakness'] = JSON.parse(
-      defender.weakness.toString(),
-    );
     const damageMultiplier =
-      defenderWeakness.name === attackerAttack.name
-        ? defenderWeakness.multiplier
+      defender.weakness.name === attacker.attack.name
+        ? defender.weakness.multiplier
         : 1;
 
     console.log('Damage multiplier ', damageMultiplier);
