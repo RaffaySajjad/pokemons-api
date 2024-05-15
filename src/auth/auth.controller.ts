@@ -26,6 +26,7 @@ export class AuthController {
     response.cookie('accessToken', token.access_token, {
       secure: true,
       httpOnly: true,
+      sameSite: 'none',
     });
     response.json(token);
   }

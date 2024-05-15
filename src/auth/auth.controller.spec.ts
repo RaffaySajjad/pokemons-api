@@ -50,6 +50,7 @@ describe('AuthController', () => {
         {
           secure: true,
           httpOnly: true,
+          sameSite: 'none',
         },
       );
       expect(mockResponse.json).toHaveBeenCalledWith({
