@@ -17,6 +17,9 @@ export class Pokemon {
   @Column()
   health: number;
 
+  @Column()
+  rarity: string;
+
   @Column({ nullable: true })
   filePath: string;
 

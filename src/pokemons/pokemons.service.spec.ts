@@ -22,6 +22,7 @@ const mockS3Service = {
 const createPokemonDto = {
   name: 'Pikachu',
   health: 200,
+  rarity: 'COMMON',
   attack: {
     name: 'THUNDER_SHOCK',
     damage: 10,
@@ -80,7 +81,7 @@ describe('PokemonsService', () => {
         filePath: 'image-url',
       });
 
-      const result = await service.create(createPokemonDto, mockFile);
+      const result = await service.createPokemon(createPokemonDto, mockFile);
       expect(mockS3Service.uploadFileToS3).toHaveBeenCalledWith(mockFile);
       expect(mockRepository.create).toHaveBeenCalledWith({
         ...createPokemonDto,
@@ -110,9 +111,9 @@ describe('PokemonsService', () => {
         path: './uploads/pokemon.txt',
         buffer: Buffer.from(''),
       };
-      await expect(service.create(createPokemonDto, mockFile)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.createPokemon(createPokemonDto, mockFile),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -123,7 +124,7 @@ describe('PokemonsService', () => {
       mockRepository.preload.mockResolvedValue({ ...updatePokemonDto, id: 1 });
       mockRepository.save.mockResolvedValue({ ...updatePokemonDto, id: 1 });
 
-      const result = await service.update('Pikachu', updatePokemonDto);
+      const result = await service.updatePokemon('Pikachu', updatePokemonDto);
       expect(mockRepository.preload).toHaveBeenCalledWith({
         id: 1,
         ...updatePokemonDto,
@@ -133,9 +134,9 @@ describe('PokemonsService', () => {
 
     it('should throw NotFoundException if Pokemon does not exist', async () => {
       mockRepository.findOne.mockResolvedValue(null);
-      await expect(service.update('Pokemon', { health: 300 })).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.updatePokemon('Pokemon', { health: 300 }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -147,24 +148,40 @@ describe('PokemonsService', () => {
       ];
       mockRepository.find.mockResolvedValue(pokemonArray);
 
-      const result = await service.findAll(10, 0);
+      const result = await service.getAllPokemons(10, 0);
       expect(mockRepository.find).toHaveBeenCalledWith({ take: 10, skip: 0 });
       expect(result).toEqual(pokemonArray);
     });
   });
 
-  describe('findOne', () => {
+  describe('findPokemonsByCriteria', () => {
     it('should return a Pokemon by id', async () => {
-      const pokemon = { name: 'Pokemon', health: 300 };
-      mockRepository.findOne.mockResolvedValue(pokemon);
+      const pokemon = [{ id: 1, name: 'Pokemon', rarity: 'common' }];
+      mockRepository.find.mockResolvedValue(pokemon);
 
-      const result = await service.findOne({ id: '1' });
+      const result = await service.findPokemonsByCriteria({ id: '1' });
+      expect(result).toEqual(pokemon);
+    });
+
+    it('should return a Pokemon by name', async () => {
+      const pokemon = [{ id: 1, name: 'Pokemon', rarity: 'common' }];
+      mockRepository.find.mockResolvedValue(pokemon);
+
+      const result = await service.findPokemonsByCriteria({ name: 'Pokemon' });
+      expect(result).toEqual(pokemon);
+    });
+
+    it('should return a Pokemon by rarity', async () => {
+      const pokemon = [{ id: 1, name: 'Pokemon', rarity: 'common' }];
+      mockRepository.find.mockResolvedValue(pokemon);
+
+      const result = await service.findPokemonsByCriteria({ rarity: 'common' });
       expect(result).toEqual(pokemon);
     });
 
     it('should throw NotFoundException if Pokemon not found', async () => {
-      mockRepository.findOne.mockResolvedValue(null);
-      await expect(service.findOne({ id: '1' })).rejects.toThrow(
+      mockRepository.find.mockResolvedValue(null);
+      await expect(service.findPokemonsByCriteria({ id: '1' })).rejects.toThrow(
         NotFoundException,
       );
     });

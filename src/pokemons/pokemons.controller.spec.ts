@@ -7,12 +7,12 @@ import { PokemonsController } from './pokemons.controller';
 import { PokemonsService } from './pokemons.service';
 
 const mockPokemonsService = {
-  create: jest.fn(),
-  update: jest.fn(),
-  findAll: jest.fn(),
-  findOne: jest.fn(),
+  createPokemon: jest.fn(),
+  updatePokemon: jest.fn(),
+  getAllPokemons: jest.fn(),
+  findPokemonsByCriteria: jest.fn(),
   getWeaknessAndResistance: jest.fn(),
-  delete: jest.fn(),
+  deletePokemon: jest.fn(),
   simulateBattle: jest.fn(),
 };
 
@@ -53,7 +53,7 @@ describe('PokemonsController', () => {
     it('should successfully create a pokemon', async () => {
       const dto = new CreatePokemonDto();
       const result = {};
-      mockPokemonsService.create.mockResolvedValue(result);
+      mockPokemonsService.createPokemon.mockResolvedValue(result);
 
       expect(await controller.createPokemon(mockFile, dto)).toBe(result);
     });
@@ -64,10 +64,10 @@ describe('PokemonsController', () => {
       const id = '1';
       const dto = new UpdatePokemonDto();
       const result = {};
-      mockPokemonsService.update.mockResolvedValue(result);
+      mockPokemonsService.updatePokemon.mockResolvedValue(result);
 
       expect(await controller.updatePokemon(id, dto)).toBe(result);
-      expect(mockPokemonsService.update).toHaveBeenCalledWith(id, dto);
+      expect(mockPokemonsService.updatePokemon).toHaveBeenCalledWith(id, dto);
     });
   });
 
@@ -76,21 +76,24 @@ describe('PokemonsController', () => {
       const limit = '10';
       const offset = '0';
       const result = [];
-      mockPokemonsService.findAll.mockResolvedValue(result);
+      mockPokemonsService.getAllPokemons.mockResolvedValue(result);
 
       expect(await controller.getAllPokemons(limit, offset)).toBe(result);
-      expect(mockPokemonsService.findAll).toHaveBeenCalledWith(+limit, +offset);
+      expect(mockPokemonsService.getAllPokemons).toHaveBeenCalledWith(
+        +limit,
+        +offset,
+      );
     });
   });
 
-  describe('getPokemon', () => {
+  describe('findPokemonsByCriteria', () => {
     it('should throw NotFoundException if neither id nor name is provided', async () => {
       try {
-        await controller.getPokemon('', '');
+        await controller.findPokemonsByCriteria('', '', '');
       } catch (error) {
         expect(error).toBeInstanceOf(BadRequestException);
         expect(error.response.message).toEqual(
-          'Query parameter id or name must be provided',
+          'Query parameter id, name or rarity must be provided',
         );
         expect(error.response.statusCode).toEqual(HttpStatus.BAD_REQUEST);
       }
@@ -98,20 +101,39 @@ describe('PokemonsController', () => {
 
     it('should retrieve a pokemon by id', async () => {
       const id = '1';
-      const result = {};
-      mockPokemonsService.findOne.mockResolvedValue(result);
+      const result = [];
+      mockPokemonsService.findPokemonsByCriteria.mockResolvedValue(result);
 
-      expect(await controller.getPokemon(id, '')).toBe(result);
-      expect(mockPokemonsService.findOne).toHaveBeenCalledWith({ id });
+      expect(await controller.findPokemonsByCriteria(id, '', '')).toBe(result);
+      expect(mockPokemonsService.findPokemonsByCriteria).toHaveBeenCalledWith({
+        id,
+      });
     });
 
     it('should retrieve a pokemon by name', async () => {
       const name = 'Pikachu';
-      const result = {};
-      mockPokemonsService.findOne.mockResolvedValue(result);
+      const result = [];
+      mockPokemonsService.findPokemonsByCriteria.mockResolvedValue(result);
 
-      expect(await controller.getPokemon('', name)).toBe(result);
-      expect(mockPokemonsService.findOne).toHaveBeenCalledWith({ name });
+      expect(await controller.findPokemonsByCriteria('', name, '')).toBe(
+        result,
+      );
+      expect(mockPokemonsService.findPokemonsByCriteria).toHaveBeenCalledWith({
+        name,
+      });
+    });
+
+    it('should retrieve a pokemon by rarity', async () => {
+      const rarity = 'RARE';
+      const result = [];
+      mockPokemonsService.findPokemonsByCriteria.mockResolvedValue(result);
+
+      expect(await controller.findPokemonsByCriteria('', '', rarity)).toBe(
+        result,
+      );
+      expect(mockPokemonsService.findPokemonsByCriteria).toHaveBeenCalledWith({
+        rarity,
+      });
     });
   });
 
@@ -131,10 +153,10 @@ describe('PokemonsController', () => {
   describe('deletePokemon', () => {
     it('should delete a pokemon successfully', async () => {
       const id = '1';
-      mockPokemonsService.delete.mockResolvedValue(undefined);
+      mockPokemonsService.deletePokemon.mockResolvedValue(undefined);
 
       await expect(controller.deletePokemon(null, id)).resolves.toBeUndefined();
-      expect(mockPokemonsService.delete).toHaveBeenCalled();
+      expect(mockPokemonsService.deletePokemon).toHaveBeenCalled();
     });
   });
 

@@ -5,7 +5,6 @@ import {
   Delete,
   Get,
   NotFoundException,
-  Param,
   Patch,
   Post,
   Query,
@@ -39,7 +38,10 @@ export class PokemonsController {
     }
 
     try {
-      const pokemon = await this.pokemonsService.create(createPokemonDto, file);
+      const pokemon = await this.pokemonsService.createPokemon(
+        createPokemonDto,
+        file,
+      );
       return pokemon;
     } catch (error) {
       throw new BadRequestException(error.message);
@@ -55,7 +57,7 @@ export class PokemonsController {
       throw new BadRequestException('Name must be provided');
     }
 
-    return this.pokemonsService.update(name, updatePokemonDto);
+    return this.pokemonsService.updatePokemon(name, updatePokemonDto);
   }
 
   @Get('all')
@@ -75,24 +77,27 @@ export class PokemonsController {
       console.log('Limit set to 20');
     }
 
-    return this.pokemonsService.findAll(+limit, +offset);
+    return this.pokemonsService.getAllPokemons(+limit, +offset);
   }
 
   @Get()
-  getPokemon(
+  findPokemonsByCriteria(
     @Query('id') id: string,
     @Query('name') name: string,
-  ): Promise<Pokemon> {
-    if (!id && !name) {
+    @Query('rarity') rarity: string,
+  ): Promise<Pokemon[]> {
+    if (!id && !name && !rarity) {
       throw new BadRequestException(
-        'Query parameter id or name must be provided',
+        'Query parameter id, name or rarity must be provided',
       );
     }
 
     if (id && !isNaN(+id)) {
-      return this.pokemonsService.findOne({ id });
+      return this.pokemonsService.findPokemonsByCriteria({ id });
     } else if (name) {
-      return this.pokemonsService.findOne({ name });
+      return this.pokemonsService.findPokemonsByCriteria({ name });
+    } else if (rarity) {
+      return this.pokemonsService.findPokemonsByCriteria({ rarity });
     }
 
     throw new BadRequestException('Invalid query parameter');
@@ -120,10 +125,15 @@ export class PokemonsController {
       );
     }
 
-    return this.pokemonsService.delete({
+    return this.pokemonsService.deletePokemon({
       value: id || name,
       isId: !!id,
     });
+  }
+
+  @Get('competitors')
+  getCompetitors(): Promise<Pokemon[]> {
+    return this.pokemonsService.getCompetitors();
   }
 
   @Get('simulateBattle')

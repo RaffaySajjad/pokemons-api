@@ -24,7 +24,7 @@
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+This Nest.js powered backend provides a RESTful API for managing Pokémon Cards, designed to integrate seamlessly with a frontend application. The API supports the creation, updating, retrieval, and deletion of Pokémon cards. It also includes a card battle simulation feature to determine the outcome of battles based on type weaknesses and resistances, as well as endpoints to identify specific card weaknesses and resistances. The backend is equipped with JWT authentication and robust test cases to ensure functionality and reliability.
 
 ## Installation
 
@@ -51,9 +51,6 @@ $ yarn run start:prod
 # unit tests
 $ yarn run test
 
-# e2e tests
-$ yarn run test:e2e
-
 # test coverage
 $ yarn run test:cov
 ```
@@ -64,9 +61,8 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 
 ## Stay in touch
 
-- Author - [Kamil Myśliwiec](https://kamilmysliwiec.com)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+- Author - Raffay Sajjad
+- Contact - [contact@raffaysajjad.com](contact@raffaysajjad.com)
 
 ## License
 

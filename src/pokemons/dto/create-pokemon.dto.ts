@@ -67,6 +67,13 @@ export class CreatePokemonDto {
   health: number;
 
   @ApiProperty({
+    description: 'The rarity of the pokemon',
+    default: 'Rare',
+  })
+  @IsString()
+  rarity: string;
+
+  @ApiProperty({
     description: 'The attack of the pokemon',
     default: { name: 'THUNDER_SHOCK', damage: 40 },
   })

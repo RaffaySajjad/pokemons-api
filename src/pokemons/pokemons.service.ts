@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ILike, Like, Repository } from 'typeorm';
 import { CreatePokemonDto } from './dto/create-pokemon.dto';
 import { UpdatePokemonDto } from './dto/update-pokemon.dto';
 import { Pokemon } from './entity/pokemon.entity';
@@ -18,11 +18,12 @@ export class PokemonsService {
     private readonly s3Service: S3Service,
   ) {}
 
-  async create(
+  async createPokemon(
     createPokemonDto: CreatePokemonDto,
     file: Express.Multer.File,
   ): Promise<Pokemon> {
-    const { name, health, attack, weakness, resistance } = createPokemonDto;
+    const { name, rarity, health, attack, weakness, resistance } =
+      createPokemonDto;
     let url = null;
 
     if (file) {
@@ -42,6 +43,7 @@ export class PokemonsService {
         name,
         health,
         attack,
+        rarity,
         weakness,
         resistance,
         filePath: url,
@@ -52,7 +54,7 @@ export class PokemonsService {
     }
   }
 
-  async update(
+  async updatePokemon(
     name: string,
     updatePokemonDto: UpdatePokemonDto,
   ): Promise<Pokemon> {
@@ -73,23 +75,29 @@ export class PokemonsService {
     return this.pokemonRepository.save(pokemon);
   }
 
-  async findAll(limit: number, offset: number): Promise<Pokemon[]> {
+  async getAllPokemons(limit: number, offset: number): Promise<Pokemon[]> {
     return this.pokemonRepository.find({
       take: limit,
       skip: offset,
     });
   }
 
-  async findOne(query: { id?: string; name?: string }): Promise<Pokemon> {
+  async findPokemonsByCriteria(query: {
+    id?: string;
+    name?: string;
+    rarity?: string;
+  }): Promise<Pokemon[]> {
     let searchCriteria = {};
 
     if (query.id) {
       searchCriteria = { id: +query.id };
     } else if (query.name) {
-      searchCriteria = { name: query.name };
+      searchCriteria = { name: ILike(`%${query.name}%`) };
+    } else if (query.rarity) {
+      searchCriteria = { rarity: ILike(`%${query.rarity}%`) };
     }
 
-    const pokemon = await this.pokemonRepository.findOne({
+    const pokemon = await this.pokemonRepository.find({
       where: searchCriteria,
     });
 
@@ -141,7 +149,7 @@ export class PokemonsService {
     };
   }
 
-  async delete({ value, isId = true }): Promise<string> {
+  async deletePokemon({ value, isId = true }): Promise<string> {
     try {
       if (isId && !isNaN(+value)) {
         return this.deleteHelper(value);
@@ -243,5 +251,13 @@ export class PokemonsService {
       name: winner.name,
       message: `${winner.name} won the battle`,
     };
+  }
+
+  async getCompetitors(): Promise<Pokemon[]> {
+    const pokemons = await this.pokemonRepository.find({
+      select: ['id', 'name'],
+    });
+
+    return pokemons;
   }
 }
